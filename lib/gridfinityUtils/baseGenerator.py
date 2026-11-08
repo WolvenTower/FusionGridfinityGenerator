@@ -343,6 +343,43 @@ def createBaseBodyPattern(
     rectangularPattern.name = 'Feet pattern'
     return list(rectangularPattern.bodies) + [baseBody]
 
+
+def createBaseBodiesForShape(
+    baseConfiguration: BaseGeneratorInput,
+    shape,
+    targetComponent: adsk.fusion.Component,
+):
+    """Create one Gridfinity foot at every occupied custom footprint cell."""
+    bodies: list[adsk.fusion.BRepBody] = []
+
+    for (column, row) in shape.iter_cells():
+        cellConfiguration = BaseGeneratorInput()
+        cellConfiguration.originPoint = adsk.core.Point3D.create(
+            baseConfiguration.originPoint.x + baseConfiguration.baseWidth.value * column,
+            baseConfiguration.originPoint.y + baseConfiguration.baseLength.value * row,
+            baseConfiguration.originPoint.z,
+        )
+        cellConfiguration.baseWidth = baseConfiguration.baseWidth
+        cellConfiguration.baseLength = baseConfiguration.baseLength
+        cellConfiguration.xyClearance = baseConfiguration.xyClearance
+        cellConfiguration.hasBottomChamfer = baseConfiguration.hasBottomChamfer
+        cellConfiguration.hasScrewHoles = baseConfiguration.hasScrewHoles
+        cellConfiguration.hasMagnetCutouts = baseConfiguration.hasMagnetCutouts
+        cellConfiguration.screwHolesDiameter = baseConfiguration.screwHolesDiameter
+        cellConfiguration.magnetCutoutsDiameter = baseConfiguration.magnetCutoutsDiameter
+        cellConfiguration.magnetCutoutsDepth = baseConfiguration.magnetCutoutsDepth
+        cellConfiguration.cornerFilletRadius = baseConfiguration.cornerFilletRadius
+        cellConfiguration.originZ = baseConfiguration.originZ
+
+        body = createSingleGridfinityBaseBody(
+            cellConfiguration,
+            targetComponent,
+            name=f'Foot {column + 1}-{row + 1}',
+        )
+        bodies.append(body)
+
+    return bodies
+
 def cutOutsideRoundedRectangles(
     rectangles: list[tuple[Dim, Dim, Dim, Dim]],
     filletRadius: float,
