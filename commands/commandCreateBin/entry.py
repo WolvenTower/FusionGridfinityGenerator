@@ -19,8 +19,9 @@ from ...lib.gridfinityUtils import const
 from ...lib.gridfinityUtils import parameterUtils
 from ...lib.gridfinityUtils import sharedParameters
 from ...lib.gridfinityUtils.dim import Dim
-from ...lib.gridfinityUtils.baseGenerator import createSingleGridfinityBaseBody, createBaseBodyPattern, cutBaseClearance, cutWallJunctionPockets, cellCenters, createCellJointOrigins
+from ...lib.gridfinityUtils.baseGenerator import createSingleGridfinityBaseBody, createBaseBodyPattern, createBaseBodiesForShape, cutBaseClearance, cutWallJunctionPockets, cellCenters, createCellJointOrigins
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
+from ...lib.gridfinityUtils.customShape import CustomShape, CustomShapeError
 from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, uniformCompartments, binBodyTopHeight, createCompartmentCutout, compartmentCutoutFilletRadius, tabTopClearance, createTabLabel, hollowTabWallThickness
 from ...lib.gridfinityUtils import labelGenerator
 from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput, BinBodyCompartmentDefinition
@@ -82,6 +83,10 @@ BIN_HEIGHT_UNIT_INPUT_ID = 'height_unit'
 BIN_XY_CLEARANCE_INPUT_ID = 'bin_xy_tolerance'
 BIN_WIDTH_INPUT_ID = 'bin_width'
 BIN_LENGTH_INPUT_ID = 'bin_length'
+BIN_FOOTPRINT_MODE_INPUT_ID = 'bin_footprint_mode'
+BIN_CUSTOM_SHAPE_INPUT_ID = 'bin_custom_shape'
+FOOTPRINT_MODE_RECTANGLE = 'Rectangle'
+FOOTPRINT_MODE_CUSTOM = 'Custom shape'
 BIN_HEIGHT_INPUT_ID = 'bin_height'
 BIN_REAL_DIMENSIONS_TABLE = "real_dimensions"
 BIN_REAL_DIMENSIONS_TABLE_TOTAL_WIDTH = "total_real_width"
@@ -227,6 +232,8 @@ def initDefaultUiState():
     commandUIState.initValue(BIN_XY_CLEARANCE_INPUT_ID, const.BIN_XY_CLEARANCE, adsk.core.ValueCommandInput.classType())
     commandUIState.initValue(BIN_WIDTH_INPUT_ID, 2, adsk.core.IntegerSpinnerCommandInput.classType())
     commandUIState.initValue(BIN_LENGTH_INPUT_ID, 3, adsk.core.IntegerSpinnerCommandInput.classType())
+    commandUIState.initValue(BIN_FOOTPRINT_MODE_INPUT_ID, FOOTPRINT_MODE_RECTANGLE, adsk.core.DropDownCommandInput.classType())
+    commandUIState.initValue(BIN_CUSTOM_SHAPE_INPUT_ID, '###/#../###/#../###', adsk.core.StringValueCommandInput.classType())
     commandUIState.initValue(BIN_HEIGHT_INPUT_ID, 5, adsk.core.ValueCommandInput.classType())
 
     commandUIState.initValue(BIN_GENERATE_BODY_INPUT_ID, True, adsk.core.BoolValueCommandInput.classType())
@@ -544,6 +551,8 @@ def is_all_input_valid(inputs: adsk.core.CommandInputs):
     xy_tolerance: adsk.core.ValueCommandInput = inputs.itemById(BIN_XY_CLEARANCE_INPUT_ID)
     bin_width: adsk.core.ValueCommandInput = inputs.itemById(BIN_WIDTH_INPUT_ID)
     bin_length: adsk.core.ValueCommandInput = inputs.itemById(BIN_LENGTH_INPUT_ID)
+    footprint_mode: adsk.core.DropDownCommandInput = inputs.itemById(BIN_FOOTPRINT_MODE_INPUT_ID)
+    custom_shape: adsk.core.StringValueCommandInput = inputs.itemById(BIN_CUSTOM_SHAPE_INPUT_ID)
     bin_height: adsk.core.ValueCommandInput = inputs.itemById(BIN_HEIGHT_INPUT_ID)
     bin_wall_thickness: adsk.core.ValueCommandInput = inputs.itemById(BIN_WALL_THICKNESS_INPUT_ID)
     bin_screw_holes: adsk.core.BoolValueCommandInput = inputs.itemById(BIN_SCREW_HOLES_INPUT_ID)
@@ -651,9 +660,20 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     binDimensionsGroup.tooltipDescription = 'Set in base units'
     binDimensionsGroup.isExpanded = commandUIState.getState(BIN_DIMENSIONS_GROUP)
     commandUIState.registerCommandInput(binDimensionsGroup)
+    footprintModeInput = binDimensionsGroup.children.addDropDownCommandInput(BIN_FOOTPRINT_MODE_INPUT_ID, 'Footprint', adsk.core.DropDownStyles.TextListDropDownStyle)
+    footprintModeDefault = commandUIState.getState(BIN_FOOTPRINT_MODE_INPUT_ID)
+    footprintModeInput.listItems.add(FOOTPRINT_MODE_RECTANGLE, footprintModeDefault == FOOTPRINT_MODE_RECTANGLE)
+    footprintModeInput.listItems.add(FOOTPRINT_MODE_CUSTOM, footprintModeDefault == FOOTPRINT_MODE_CUSTOM)
+    commandUIState.registerCommandInput(footprintModeInput)
+    customShapeInput = binDimensionsGroup.children.addStringValueInput(BIN_CUSTOM_SHAPE_INPUT_ID, 'Custom shape (# = cell, . = empty; / = next row)', commandUIState.getState(BIN_CUSTOM_SHAPE_INPUT_ID))
+    customShapeInput.tooltip = 'Example uppercase E: ###/#../###/#../###'
+    customShapeInput.isVisible = footprintModeDefault == FOOTPRINT_MODE_CUSTOM
+    commandUIState.registerCommandInput(customShapeInput)
     binWidthInput = binDimensionsGroup.children.addIntegerSpinnerCommandInput(BIN_WIDTH_INPUT_ID, 'Bin width, X (u)', 1, 100, 1, commandUIState.getState(BIN_WIDTH_INPUT_ID))
+    binWidthInput.isVisible = footprintModeDefault == FOOTPRINT_MODE_RECTANGLE
     commandUIState.registerCommandInput(binWidthInput)
     binLengthInput = binDimensionsGroup.children.addIntegerSpinnerCommandInput(BIN_LENGTH_INPUT_ID, 'Bin length, Y (u)', 1, 100, 1, commandUIState.getState(BIN_LENGTH_INPUT_ID))
+    binLengthInput.isVisible = footprintModeDefault == FOOTPRINT_MODE_RECTANGLE
     commandUIState.registerCommandInput(binLengthInput)
     binHeightInput = binDimensionsGroup.children.addValueInput(BIN_HEIGHT_INPUT_ID, 'Bin height, Z (u)', '', adsk.core.ValueInput.createByReal(commandUIState.getState(BIN_HEIGHT_INPUT_ID)))
     binHeightInput.minimumValue = 1
@@ -1042,6 +1062,15 @@ def generateBin(args: adsk.core.CommandEventArgs):
     compartmentsX: adsk.core.IntegerSpinnerCommandInput = inputs.itemById(BIN_COMPARTMENTS_GRID_BASE_WIDTH_ID)
     compartmentsY: adsk.core.IntegerSpinnerCommandInput = inputs.itemById(BIN_COMPARTMENTS_GRID_BASE_LENGTH_ID)
 
+    if footprint_mode.selectedItem.name == FOOTPRINT_MODE_CUSTOM:
+        try:
+            footprint = CustomShape.parse(custom_shape.value)
+        except CustomShapeError as error:
+            ui.messageBox(f'Invalid custom footprint:\n\n{error}', CMD_NAME)
+            return
+    else:
+        footprint = CustomShape.rectangle(bin_width.value, bin_length.value)
+
     isHollow = binTypeDropdownInput.selectedItem.name == BIN_TYPE_HOLLOW
     isSolid = binTypeDropdownInput.selectedItem.name == BIN_TYPE_SOLID
     isShelled = binTypeDropdownInput.selectedItem.name == BIN_TYPE_SHELLED
@@ -1053,7 +1082,7 @@ def generateBin(args: adsk.core.CommandEventArgs):
         root = adsk.fusion.Component.cast(des.rootComponent)
 
         xyClearance = xy_clearance.value
-        binName = 'Gridfinity bin {}x{}x{}'.format(int(bin_length.value), int(bin_width.value), int(bin_height.value))
+        binName = 'Gridfinity bin {}x{}x{}'.format(footprint.length, footprint.width, int(bin_height.value))
 
         originalTimelineCount = des.timeline.count
         if des.designIntent == adsk.fusion.DesignIntentTypes.HybridDesignIntentType:
@@ -1114,10 +1143,9 @@ def generateBin(args: adsk.core.CommandEventArgs):
 
         baseBodies: list[adsk.fusion.BRepBody]
         if bin_generate_base.value:
-            baseBodies = createBaseBodyPattern(
+            baseBodies = createBaseBodiesForShape(
                 baseGeneratorInput,
-                bin_width.value,
-                bin_length.value,
+                footprint,
                 gridfinityBinComponent,
             )
 
