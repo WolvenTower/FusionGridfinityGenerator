@@ -113,7 +113,7 @@ def createGridfinityCustomShapeBinBody(
                 y * input.baseLength.value + input.xyClearance,
                 0,
             ),
-            Dim.length(0),
+            0,
             name=f'Custom footprint cell {index + 1}',
         )
         cellBodies.append(cellBodyFeature.bodies.item(0))
@@ -146,7 +146,7 @@ def createGridfinityCustomShapeBinBody(
                     y * input.baseLength.value + input.wallThickness + input.xyClearance,
                     const.BIN_COMPARTMENT_BOTTOM_THICKNESS,
                 ),
-                Dim.length(const.BIN_COMPARTMENT_BOTTOM_THICKNESS),
+                0,
                 name=f'Custom cavity cell {index + 1}',
             )
             cavityBodies.append(cavityFeature.bodies.item(0))
