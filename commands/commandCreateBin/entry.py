@@ -22,7 +22,7 @@ from ...lib.gridfinityUtils.dim import Dim
 from ...lib.gridfinityUtils.baseGenerator import createSingleGridfinityBaseBody, createBaseBodyPattern, createBaseBodiesForShape, cutBaseClearance, cutWallJunctionPockets, cellCenters, createCellJointOrigins
 from ...lib.gridfinityUtils.baseGeneratorInput import BaseGeneratorInput
 from ...lib.gridfinityUtils.customShape import CustomShape, CustomShapeError
-from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, uniformCompartments, binBodyTopHeight, createCompartmentCutout, compartmentCutoutFilletRadius, tabTopClearance, createTabLabel, hollowTabWallThickness
+from ...lib.gridfinityUtils.binBodyGenerator import createGridfinityBinBody, createGridfinityCustomShapeBinBody, uniformCompartments, binBodyTopHeight, createCompartmentCutout, compartmentCutoutFilletRadius, tabTopClearance, createTabLabel, hollowTabWallThickness
 from ...lib.gridfinityUtils import labelGenerator
 from ...lib.gridfinityUtils.binBodyGeneratorInput import BinBodyGeneratorInput, BinBodyCompartmentDefinition
 from ...lib.gridfinityUtils.binBodyTabGeneratorInput import BinBodyTabGeneratorInput
@@ -1153,8 +1153,9 @@ def generateBin(args: adsk.core.CommandEventArgs):
         binBodyInput = BinBodyGeneratorInput()
         binBodyInput.hasLip = with_lip.value
         binBodyInput.hasLipNotches = with_lip_notches.value
-        binBodyInput.binWidth = bin_width.value
-        binBodyInput.binLength = bin_length.value
+        binBodyInput.binWidth = footprint.width
+        binBodyInput.binLength = footprint.length
+        binBodyInput.footprint = footprint
         binBodyInput.binHeight = Dim.number(bin_height.value)
         binBodyInput.baseWidth = baseWidth
         binBodyInput.baseLength = baseLength
