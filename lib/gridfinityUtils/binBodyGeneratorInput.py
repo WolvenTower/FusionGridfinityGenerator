@@ -77,6 +77,15 @@ class BinBodyGeneratorInput():
         self.compartmentsByX = 1
         self.compartmentsByY = 1
         self.binCornerFilletRadius = const.BIN_CORNER_FILLET_RADIUS
+        self.footprint = None
+
+    @property
+    def footprint(self):
+        return self._footprint
+
+    @footprint.setter
+    def footprint(self, value):
+        self._footprint = value
 
     @property
     def baseWidth(self) -> Dim:
@@ -295,3 +304,4 @@ class BinBodyGeneratorInput():
     @compartments.setter
     def compartments(self, value: list[BinBodyCompartmentDefinition]):
         self._compartments = value
+
