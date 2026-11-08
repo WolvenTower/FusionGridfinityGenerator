@@ -18,6 +18,10 @@ def _displayValue(input: adsk.core.CommandInput) -> str | None:
     stringInput = adsk.core.StringValueCommandInput.cast(input)
     if stringInput is not None and not stringInput.isReadOnly:
         return stringInput.value
+    textBoxInput = adsk.core.TextBoxCommandInput.cast(input)
+    if textBoxInput is not None and not textBoxInput.isReadOnly:
+        # rows of a shape on a single line
+        return ' / '.join(line.strip() for line in textBoxInput.text.splitlines() if line.strip() != '')
     return None
 
 def _tableRows(table: adsk.core.TableCommandInput, rowName: str) -> list[list[str]]:

@@ -60,7 +60,8 @@ class CommandUiState:
         elif isinstance(input, adsk.core.BoolValueCommandInput):
             self.inputState[inputId] = SingleInputState(inputId, input.value, input.objectType)
         elif isinstance(input, adsk.core.TextBoxCommandInput):
-            self.inputState[inputId] = SingleInputState(inputId, input.formattedText, input.objectType)
+            # what the user types in an editable box is plain text, read only ones show formatted text
+            self.inputState[inputId] = SingleInputState(inputId, input.formattedText if input.isReadOnly else input.text, input.objectType)
         elif isinstance(input, adsk.core.StringValueCommandInput):
             self.inputState[inputId] = SingleInputState(inputId, input.value, input.objectType)
         else:
@@ -99,7 +100,10 @@ class CommandUiState:
         elif isinstance(input, adsk.core.BoolValueCommandInput):
             input.value = value
         elif isinstance(input, adsk.core.TextBoxCommandInput):
-            input.formattedText = value
+            if input.isReadOnly:
+                input.formattedText = value
+            else:
+                input.text = value
         elif isinstance(input, adsk.core.StringValueCommandInput):
             input.value = value
         else:

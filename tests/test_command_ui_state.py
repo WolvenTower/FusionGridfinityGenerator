@@ -209,3 +209,33 @@ class TestManualPreviewStateBug:
         # updateValue on a non-existent key is a no-op — entry still absent
         state.updateValue("show_preview_manual", False)
         assert "show_preview_manual" not in state.inputState
+
+
+# ---------------------------------------------------------------------------
+# Text boxes, editable ones hold what the user types, like the shape of a custom bin
+# ---------------------------------------------------------------------------
+
+class TestTextBoxes:
+    def test_editable_text_box_state_is_its_plain_text(self):
+        state = CommandUiState("test")
+        box = core.TextBoxCommandInput("shape", "##\n#.", False)
+        state.onInputUpdate(box)
+        assert state.getState("shape") == "##\n#."
+
+        box.text = "###"
+        state.onInputUpdate(box)
+        assert state.getState("shape") == "###"
+
+    def test_state_is_written_back_to_an_editable_text_box(self):
+        state = CommandUiState("test")
+        box = core.TextBoxCommandInput("shape", "", False)
+        state.initValue("shape", "#.#", core.TextBoxCommandInput.classType())
+        state.registerCommandInput(box)
+        state.forceUIRefresh()
+        assert box.text == "#.#"
+
+    def test_read_only_text_box_state_is_its_formatted_text(self):
+        state = CommandUiState("test")
+        box = core.TextBoxCommandInput("info", "<b>hi</b>", True)
+        state.onInputUpdate(box)
+        assert state.getState("info") == "<b>hi</b>"

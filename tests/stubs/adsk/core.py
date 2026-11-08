@@ -126,8 +126,17 @@ class GroupCommandInput(CommandInput):
 
 
 class TextBoxCommandInput(CommandInput):
-    def __init__(self, input_id: str, text: str = ""):
+    def __init__(self, input_id: str, text: str = "", is_read_only: bool = True):
         super().__init__(input_id, text)
+        self.isReadOnly = is_read_only
+
+    @property
+    def text(self) -> str:
+        return str(self._value)
+
+    @text.setter
+    def text(self, v: str):
+        self._value = v
 
     @property
     def formattedText(self) -> str:

@@ -43,6 +43,27 @@ Light | Skeleton with connection holes | Full
 - compartments can be configured to use uniform scale
 - custom compartmens layout is based on the uniform grid and allows merging multiple cells together, specifying custom depth and position
 
+#### Custom shapes
+
+Set `Footprint` to `Custom shape` to build a bin out of any arrangement of base cells instead of a rectangle. Type the shape in the `Shape` box, one row per line with the top row first, `#` for a cell and `.` for an empty spot. An upper case E:
+
+```
+###
+#..
+###
+#..
+###
+```
+
+The number of cells in every row works too, left aligned: `3,1,3,1,3` gives the same E. Rows can also be separated with `/`.
+
+- every cell gets a foot, with the same magnet and screw options as a regular bin
+- walls, lip and cavity follow the outline of the shape, the inside is one open cavity
+- cells have to share a side with another one, shapes touching only at a corner are rejected
+- hollow and solid types are supported, compartments, label tabs, scoop and shelled bins are not
+- the lip always has the notched profile
+- the outline is not tied to the base unit parameters, regenerate the bin to change the unit
+
 #### Bin bottom options
 Solid bottom | With screw holes | With magnet cutouts | Combined
 :-------------------------:|:-------------------------:|:-------------------------:|:-------------------------:
