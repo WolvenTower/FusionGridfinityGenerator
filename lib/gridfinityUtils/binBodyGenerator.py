@@ -83,6 +83,84 @@ def binBodyTopHeight(input: BinBodyGeneratorInput) -> Dim:
         return input.binHeight * input.heightUnit - Dim.length(const.BIN_BASE_HEIGHT)
     return (input.binHeight - Dim.number(1)) * input.heightUnit
 
+
+def createGridfinityCustomShapeBinBody(
+    input: BinBodyGeneratorInput,
+    targetComponent: adsk.fusion.Component,
+) -> adsk.fusion.BRepBody:
+    """Create a bin by joining occupied cell prisms, then cutting one cavity per cell.
+
+    This deliberately uses Fusion's existing box/combine operations instead of
+    a fragile arbitrary-profile offset. Adjacent cells become one continuous
+    body and the cavity cutters merge into one continuous interior.
+    """
+    if input.footprint is None:
+        raise ValueError('Custom footprint is required.')
+
+    features = targetComponent.features
+    bodyHeight = binBodyTopHeight(input)
+    wall = Dim.length(input.wallThickness)
+
+    cellBodies = []
+    for index, (x, y) in enumerate(input.footprint.iter_cells()):
+        cellBodyFeature = extrudeUtils.createBoxAtPoint(
+            input.baseWidth - Dim.length(input.xyClearance * 2),
+            input.baseLength - Dim.length(input.xyClearance * 2),
+            bodyHeight,
+            targetComponent,
+            adsk.core.Point3D.create(
+                x * input.baseWidth.value + input.xyClearance,
+                y * input.baseLength.value + input.xyClearance,
+                0,
+            ),
+            0,
+            name=f'Custom footprint cell {index + 1}',
+        )
+        cellBodies.append(cellBodyFeature.bodies.item(0))
+
+    binBody = cellBodies[0]
+    binBody.name = 'Custom Gridfinity bin body'
+
+    if len(cellBodies) > 1:
+        combineUtils.joinBodies(
+            binBody,
+            commonUtils.objectCollectionFromList(cellBodies[1:]),
+            targetComponent,
+            name='Custom footprint body join',
+        )
+
+    # Version 1 supports one continuous cavity. More advanced rectangular-only
+    # compartment/tab/lip features are intentionally bypassed here.
+    if not input.isSolid:
+        cavityHeight = bodyHeight - Dim.length(const.BIN_COMPARTMENT_BOTTOM_THICKNESS)
+        cavityBodies = []
+
+        for index, (x, y) in enumerate(input.footprint.iter_cells()):
+            cavityFeature = extrudeUtils.createBoxAtPoint(
+                input.baseWidth - wall * 2 - Dim.length(input.xyClearance * 2),
+                input.baseLength - wall * 2 - Dim.length(input.xyClearance * 2),
+                cavityHeight,
+                targetComponent,
+                adsk.core.Point3D.create(
+                    x * input.baseWidth.value + input.wallThickness + input.xyClearance,
+                    y * input.baseLength.value + input.wallThickness + input.xyClearance,
+                    const.BIN_COMPARTMENT_BOTTOM_THICKNESS,
+                ),
+                0,
+                name=f'Custom cavity cell {index + 1}',
+            )
+            cavityBodies.append(cavityFeature.bodies.item(0))
+
+        if cavityBodies:
+            combineUtils.cutBody(
+                binBody,
+                commonUtils.objectCollectionFromList(cavityBodies),
+                targetComponent,
+                name='Custom footprint cavity',
+            )
+
+    return binBody
+
 def createGridfinityBinBody(
     input: BinBodyGeneratorInput,
     targetComponent: adsk.fusion.Component,
